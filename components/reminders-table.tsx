@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Archive, Pause, Pencil, Play, Trash2 } from "lucide-react";
+import { Archive, ChevronUp, ChevronDown, ChevronsUpDown, Pause, Pencil, Play, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -25,6 +25,9 @@ interface Reminder {
   reminderOffsets?: ReminderOffset[];
 }
 
+type SortKey = "title" | "type" | "urgency" | "status" | "nextNotification";
+type SortDir = "asc" | "desc";
+
 const urgencyStyles: Record<string, string> = {
   low: "bg-green-50 text-green-700",
   medium: "bg-amber-50 text-amber-700",
@@ -45,16 +48,19 @@ const typeLabels: Record<string, string> = {
   habit: "Habit"
 };
 
+const urgencyOrder: Record<string, number> = {
+  low: 0, medium: 1, high: 2, critical: 3
+};
+
+const statusOrder: Record<string, number> = {
+  active: 0, paused: 1, completed: 2, archived: 3
+};
+
 function offsetToMs(offset: ReminderOffset): number {
   const multiplier = offset.unit === "days" ? 1440 : offset.unit === "hours" ? 60 : 1;
   return offset.value * multiplier * 60 * 1000;
 }
 
-/**
- * Returns the time of the earliest notification for a reminder occurrence.
- * = eventTime - max(offsets)
- * If no offsets, the notification fires at the event time itself (offset 0).
- */
 function firstNotificationTime(eventTime: Date, offsets: ReminderOffset[]): Date {
   if (!offsets.length) return eventTime;
   const maxMs = Math.max(...offsets.map(offsetToMs));
@@ -71,9 +77,44 @@ function formatDateTime(date: Date): string {
   });
 }
 
+function getNotifTime(item: Reminder): Date | null {
+  if (!item.nextTriggerAt) return null;
+  const eventTime = new Date(item.nextTriggerAt);
+  return firstNotificationTime(eventTime, item.reminderOffsets ?? []);
+}
+
+function sortItems(items: Reminder[], key: SortKey, dir: SortDir): Reminder[] {
+  return [...items].sort((a, b) => {
+    let cmp = 0;
+    if (key === "title") {
+      cmp = a.title.localeCompare(b.title);
+    } else if (key === "type") {
+      cmp = (typeLabels[a.type] ?? a.type).localeCompare(typeLabels[b.type] ?? b.type);
+    } else if (key === "urgency") {
+      cmp = (urgencyOrder[a.urgency] ?? 0) - (urgencyOrder[b.urgency] ?? 0);
+    } else if (key === "status") {
+      cmp = (statusOrder[a.status] ?? 0) - (statusOrder[b.status] ?? 0);
+    } else if (key === "nextNotification") {
+      const at = getNotifTime(a)?.getTime() ?? Infinity;
+      const bt = getNotifTime(b)?.getTime() ?? Infinity;
+      cmp = at - bt;
+    }
+    return dir === "asc" ? cmp : -cmp;
+  });
+}
+
+function SortIcon({ col, active, dir }: { col: string; active: boolean; dir: SortDir }) {
+  if (!active) return <ChevronsUpDown className="ml-1 inline h-3 w-3 text-muted-foreground/50" />;
+  return dir === "asc"
+    ? <ChevronUp className="ml-1 inline h-3 w-3 text-primary" />
+    : <ChevronDown className="ml-1 inline h-3 w-3 text-primary" />;
+}
+
 export function RemindersTable({ refreshKey }: { refreshKey?: number }) {
   const [items, setItems] = useState<Reminder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [sortKey, setSortKey] = useState<SortKey>("title");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [archiveTarget, setArchiveTarget] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Reminder | null>(null);
 
@@ -88,13 +129,21 @@ export function RemindersTable({ refreshKey }: { refreshKey?: number }) {
     load();
   }, [refreshKey]);
 
+  function handleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
   async function patch(id: string, status: string) {
     const res = await fetch(`/api/reminders/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status })
     });
-
     if (res.ok) {
       toast.success(`Reminder ${status}`);
       load();
@@ -144,6 +193,16 @@ export function RemindersTable({ refreshKey }: { refreshKey?: number }) {
     );
   }
 
+  const sorted = sortItems(items, sortKey, sortDir);
+
+  const columns: { key: SortKey; label: string }[] = [
+    { key: "title", label: "Title" },
+    { key: "type", label: "Type" },
+    { key: "urgency", label: "Urgency" },
+    { key: "status", label: "Status" },
+    { key: "nextNotification", label: "Next Notification" },
+  ];
+
   return (
     <>
       <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
@@ -151,25 +210,26 @@ export function RemindersTable({ refreshKey }: { refreshKey?: number }) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/30">
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Title</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Urgency</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Next Notification
+                {columns.map(({ key, label }) => (
+                  <th key={key} className="px-4 py-3 text-left">
+                    <button
+                      onClick={() => handleSort(key)}
+                      className="inline-flex items-center text-xs font-semibold uppercase tracking-wide text-muted-foreground transition hover:text-foreground"
+                    >
+                      {label}
+                      <SortIcon col={key} active={sortKey === key} dir={sortDir} />
+                    </button>
+                  </th>
+                ))}
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Actions
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {items.map((item) => {
-                let notifTime: Date | null = null;
-                let eventTime: Date | null = null;
-
-                if (item.nextTriggerAt) {
-                  eventTime = new Date(item.nextTriggerAt);
-                  notifTime = firstNotificationTime(eventTime, item.reminderOffsets ?? []);
-                }
+              {sorted.map((item) => {
+                const eventTime = item.nextTriggerAt ? new Date(item.nextTriggerAt) : null;
+                const notifTime = eventTime ? firstNotificationTime(eventTime, item.reminderOffsets ?? []) : null;
 
                 return (
                   <tr key={item._id} className="transition hover:bg-muted/20">
@@ -192,11 +252,9 @@ export function RemindersTable({ refreshKey }: { refreshKey?: number }) {
                     <td className="px-4 py-3">
                       {notifTime && eventTime ? (
                         <div>
-                          {/* First notification fires at eventTime - maxOffset */}
                           <p className="text-sm font-medium text-foreground">
                             {formatDateTime(notifTime)}
                           </p>
-                          {/* If there is an offset, also show the event time */}
                           {notifTime.getTime() !== eventTime.getTime() && (
                             <p className="text-xs text-muted-foreground">
                               Event: {formatDateTime(eventTime)}
