@@ -61,7 +61,7 @@ export default function SettingsPage() {
     const res = await fetch("/api/test-notification", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ publisherId: publisher._id, title: "Test", message: "Reminder OS test notification" })
+      body: JSON.stringify({ publisherId: publisher._id, title: "Test", message: "Reminder test notification" })
     });
     setTestingId(null);
 

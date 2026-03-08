@@ -32,7 +32,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Bell className="h-5 w-5 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-base font-bold leading-tight">Reminder OS</h1>
+            <h1 className="text-base font-bold leading-tight">Reminder</h1>
             <p className="text-xs text-muted-foreground">Stay on top of everything</p>
           </div>
         </div>
@@ -43,7 +43,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="mt-4 space-y-2">
           <div className="rounded-xl bg-muted p-3">
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Powered by <span className="font-medium text-foreground">ntfy</span> for push notifications.
+              Powered by <span className="font-medium text-foreground">ntfy</span> for push notifications and created by bariscanaslan.dev
             </p>
           </div>
 
