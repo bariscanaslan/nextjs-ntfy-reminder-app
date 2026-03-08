@@ -68,6 +68,18 @@ export async function enqueueOccurrenceJobs(reminderId: string, occurrenceAt?: D
     return;
   }
 
+  // If the occurrence itself is already in the past, skip it entirely and
+  // advance to the next future occurrence so we never fire stale notifications.
+  if (next.getTime() <= Date.now()) {
+    const futureNext = getNextOccurrence(reminder, new Date());
+    reminder.nextTriggerAt = futureNext;
+    await reminder.save();
+    if (futureNext) {
+      await enqueueOccurrenceJobs(String(reminder._id), futureNext);
+    }
+    return;
+  }
+
   const offsets = [{ value: 0, unit: "minutes" as const }, ...(reminder.reminderOffsets ?? [])];
 
   for (const offset of offsets) {
@@ -114,7 +126,9 @@ export async function scheduleNextAfterDelivery(reminderId: string, triggerAt: D
   if (!reminder || reminder.status !== "active") return;
 
   reminder.lastTriggeredAt = triggerAt;
-  const next = getNextOccurrence(reminder, new Date(triggerAt.getTime() + 1000));
+  // Always search from now so missed/past occurrences are skipped rather than
+  // firing immediately and cascading through all missed months.
+  const next = getNextOccurrence(reminder, new Date());
   reminder.nextTriggerAt = next;
   await reminder.save();
 

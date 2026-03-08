@@ -322,6 +322,11 @@ export default function EditReminderPage() {
           </Field>
           <Field label="Start Date & Time" required>
             <Input type="datetime-local" value={form.startAt} onChange={(e) => update("startAt", e.target.value)} />
+            {form.type === "recurring" && (
+              <p className="text-[11px] text-amber-600">
+                For recurring events, set this to when the <strong>event occurs</strong> — notifications fire before this time based on your offsets.
+              </p>
+            )}
           </Field>
           <Field label="End Date & Time" error={endError ?? undefined}>
             <Input
