@@ -8,6 +8,7 @@ import { IconPicker } from "@/components/forms/icon-picker";
 import { OffsetPicker, type OffsetEntry } from "@/components/forms/offset-picker";
 import { UrgencyPicker } from "@/components/forms/urgency-picker";
 import { RecurrencePicker } from "@/components/forms/recurrence-picker";
+import { DateTimePicker } from "@/components/forms/datetime-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -321,7 +322,7 @@ export default function EditReminderPage() {
             </select>
           </Field>
           <Field label="Start Date & Time" required>
-            <Input type="datetime-local" value={form.startAt} onChange={(e) => update("startAt", e.target.value)} />
+            <DateTimePicker value={form.startAt} onChange={(v) => update("startAt", v)} />
             {form.type === "recurring" && (
               <p className="text-[11px] text-amber-600">
                 For recurring events, set this to when the <strong>event occurs</strong> — notifications fire before this time based on your offsets.
@@ -329,11 +330,10 @@ export default function EditReminderPage() {
             )}
           </Field>
           <Field label="End Date & Time" error={endError ?? undefined}>
-            <Input
-              type="datetime-local"
+            <DateTimePicker
               value={form.endAt}
-              className={endError ? "border-destructive focus:ring-destructive/30" : ""}
-              onChange={(e) => update("endAt", e.target.value)}
+              onChange={(v) => update("endAt", v)}
+              className={endError ? "ring-1 ring-destructive rounded-xl" : ""}
             />
           </Field>
           <Field label="Timezone">
