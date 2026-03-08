@@ -11,6 +11,7 @@ const PUBLIC_PREFIXES = [
   // Next.js internals
   "/_next",
   "/favicon.ico",
+  "/favicon.svg",
 ];
 
 export async function middleware(request: NextRequest) {

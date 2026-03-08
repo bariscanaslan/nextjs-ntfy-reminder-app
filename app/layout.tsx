@@ -4,14 +4,16 @@ import { AppShell } from "@/components/app-shell";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Reminder OS",
+  title: "Reminder",
   description: "Production-minded reminders with calendar and ntfy delivery",
-  icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+      </head>
       <body>
         <AppShell>{children}</AppShell>
         <Toaster richColors position="top-right" />

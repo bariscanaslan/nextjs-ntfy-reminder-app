@@ -55,7 +55,7 @@ export default function LoginPage() {
             <Bell className="h-7 w-7 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Reminder OS</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Reminder</h1>
             <p className="mt-1 text-sm text-muted-foreground">Sign in to access your reminders</p>
           </div>
         </div>
@@ -132,11 +132,6 @@ export default function LoginPage() {
             </button>
           </form>
         </div>
-
-        <p className="mt-4 text-center text-xs text-muted-foreground">
-          Credentials are set via <code className="rounded bg-muted px-1 py-0.5 font-mono">APP_USERNAME</code> and{" "}
-          <code className="rounded bg-muted px-1 py-0.5 font-mono">APP_PASSWORD</code> environment variables.
-        </p>
       </div>
     </div>
   );
