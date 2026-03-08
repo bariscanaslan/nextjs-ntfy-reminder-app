@@ -14,6 +14,9 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Ensure public dir exists even if empty (COPY fails otherwise)
+RUN mkdir -p /app/public
+
 RUN npm run build
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────

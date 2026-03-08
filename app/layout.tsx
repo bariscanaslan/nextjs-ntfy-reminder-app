@@ -5,7 +5,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Reminder OS",
-  description: "Production-minded reminders with calendar and ntfy delivery"
+  description: "Production-minded reminders with calendar and ntfy delivery",
+  icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
