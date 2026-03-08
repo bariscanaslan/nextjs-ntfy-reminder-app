@@ -25,8 +25,22 @@ export async function GET(request: NextRequest) {
       .populate("categoryId")
       .lean();
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const events = (reminders as any[]).map((reminder) => {
+    type ReminderDoc = {
+      _id: { toString(): string };
+      title: string;
+      type?: string;
+      status?: string;
+      urgency?: string;
+      iconKey?: string;
+      allDay?: boolean;
+      startAt: Date;
+      endAt?: Date | null;
+      nextTriggerAt?: Date | null;
+      categoryId?: unknown;
+      description?: string;
+    };
+
+    const events = (reminders as ReminderDoc[]).map((reminder) => {
       // For recurring reminders prefer nextTriggerAt so the event lands on
       // the upcoming occurrence rather than the original creation date.
       const start =

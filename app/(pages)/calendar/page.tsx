@@ -344,9 +344,8 @@ export default function CalendarPage() {
       });
   }, []);
 
-  const now = new Date();
-
   const stats = useMemo(() => {
+    const now = new Date();
     const todayStr = now.toDateString();
     const weekEnd = new Date(now);
     weekEnd.setDate(now.getDate() + 7);
