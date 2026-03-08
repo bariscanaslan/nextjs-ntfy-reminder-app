@@ -1,0 +1,35 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3031:3000"
+    environment:
+      MONGODB_URI: mongodb://mongo:27017/reminders
+      APP_USERNAME: ${APP_USERNAME}
+      APP_PASSWORD: ${APP_PASSWORD}
+      APP_SECRET: ${APP_SECRET}
+      ICAL_SECRET: ${ICAL_SECRET}
+      INTERNAL_JOB_SECRET: ${INTERNAL_JOB_SECRET}
+      NTFY_DEFAULT_SERVER_URL: ${NTFY_DEFAULT_SERVER_URL}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+      # Trigger.dev (optional — leave as-is if not using)
+      TRIGGER_SECRET_KEY: ${TRIGGER_SECRET_KEY:-}
+      TRIGGER_PROJECT_REF: ${TRIGGER_PROJECT_REF:-}
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mongo_data:

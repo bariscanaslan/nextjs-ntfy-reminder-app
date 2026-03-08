@@ -1,0 +1,193 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 220 30% 97%;
+  --foreground: 220 26% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 220 26% 12%;
+  --primary: 217 91% 50%;
+  --primary-foreground: 0 0% 100%;
+  --muted: 220 20% 93%;
+  --muted-foreground: 220 14% 46%;
+  --accent: 27 90% 54%;
+  --accent-foreground: 220 30% 15%;
+  --border: 220 20% 88%;
+  --destructive: 0 75% 52%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 142 72% 38%;
+  --warning: 38 92% 50%;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(circle at 10% 5%, rgba(59, 130, 246, 0.06), transparent 40%),
+    radial-gradient(circle at 90% 10%, rgba(244, 138, 36, 0.06), transparent 40%);
+}
+
+/* ─── FullCalendar modern overrides ──────────────────────────────────────── */
+
+.fc-modern {
+  --fc-border-color: hsl(var(--border));
+  --fc-today-bg-color: hsl(var(--primary) / 0.06);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: hsl(var(--muted));
+  --fc-event-border-color: transparent;
+}
+
+/* Toolbar */
+.fc-modern .fc-toolbar {
+  @apply mb-4 flex-wrap gap-2;
+}
+
+.fc-modern .fc-toolbar-title {
+  @apply text-lg font-bold tracking-tight;
+}
+
+/* Nav buttons (prev/next/today) */
+.fc-modern .fc-button {
+  background: hsl(var(--card)) !important;
+  border: 1px solid hsl(var(--border)) !important;
+  border-radius: 10px !important;
+  color: hsl(var(--foreground)) !important;
+  font-size: 0.8125rem !important;
+  font-weight: 500 !important;
+  padding: 0.375rem 0.75rem !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04) !important;
+  transition: background 0.15s, border-color 0.15s !important;
+}
+
+.fc-modern .fc-button:hover {
+  background: hsl(var(--muted)) !important;
+  border-color: hsl(var(--primary) / 0.4) !important;
+}
+
+.fc-modern .fc-button-active,
+.fc-modern .fc-button-primary:not(:disabled).fc-button-active {
+  background: hsl(var(--primary)) !important;
+  border-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.fc-modern .fc-button:focus {
+  box-shadow: 0 0 0 3px hsl(var(--primary) / 0.2) !important;
+  outline: none !important;
+}
+
+/* Column headers (Mon, Tue…) */
+.fc-modern .fc-col-header-cell {
+  @apply py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground;
+  background: hsl(var(--muted) / 0.4) !important;
+  border-bottom: 1px solid hsl(var(--border)) !important;
+}
+
+/* Day cells */
+.fc-modern .fc-daygrid-day {
+  @apply transition;
+}
+
+.fc-modern .fc-daygrid-day:hover {
+  background: hsl(var(--muted) / 0.35) !important;
+}
+
+/* Day numbers */
+.fc-modern .fc-daygrid-day-number {
+  @apply px-2 py-1 text-sm font-medium text-muted-foreground;
+}
+
+.fc-modern .fc-day-today .fc-daygrid-day-number {
+  @apply font-bold text-primary;
+}
+
+.fc-modern .fc-day-today {
+  background: hsl(var(--primary) / 0.07) !important;
+}
+
+/* Events — we use custom eventContent so strip FullCalendar defaults */
+.fc-modern .fc-daygrid-event {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 6px !important;
+  margin: 1px 2px !important;
+  padding: 0 !important;
+}
+
+.fc-modern .fc-daygrid-event-harness {
+  margin-top: 2px !important;
+}
+
+.fc-modern .fc-event-main {
+  padding: 0 !important;
+}
+
+/* "+N more" link */
+.fc-modern .fc-daygrid-more-link {
+  @apply rounded px-1 text-xs font-medium text-primary;
+}
+
+.fc-modern .fc-daygrid-more-link:hover {
+  @apply underline;
+}
+
+/* Time-grid events */
+.fc-modern .fc-timegrid-event {
+  border-radius: 6px !important;
+  padding: 2px 4px !important;
+}
+
+/* Grid lines */
+.fc-modern .fc-scrollgrid {
+  border-radius: 12px !important;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border)) !important;
+}
+
+.fc-modern .fc-scrollgrid td,
+.fc-modern .fc-scrollgrid th {
+  border-color: hsl(var(--border)) !important;
+}
+
+/* Time slots */
+.fc-modern .fc-timegrid-slot-label {
+  @apply text-xs text-muted-foreground;
+}
+
+/* Popover for "+N more" */
+.fc-modern .fc-popover {
+  @apply rounded-xl border border-border bg-card shadow-lg;
+}
+
+.fc-modern .fc-popover-header {
+  @apply rounded-t-xl bg-muted/50 px-3 py-2 text-xs font-semibold text-muted-foreground;
+}
+
+.fc-modern .fc-popover-body {
+  @apply p-2;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded-full bg-border;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/40;
+}
+
+/* Select styling */
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px !important;
+}
