@@ -30,7 +30,15 @@ async function tryTriggerDev(jobId: string, delayMs: number): Promise<boolean> {
  * Schedule a job to be processed via an in-process setTimeout.
  * This is the fallback when Trigger.dev is unavailable.
  */
+// setTimeout silently overflows and fires immediately for delays > 2^31-1 ms (~24.8 days).
+// For anything beyond that, skip the timeout and let the 30s poller handle it instead.
+const MAX_TIMEOUT_MS = 2_147_483_647;
+
 function scheduleViaTimeout(jobId: string, delayMs: number) {
+  if (delayMs > MAX_TIMEOUT_MS) {
+    // Job is persisted in DB — the poller will pick it up when scheduledFor arrives.
+    return;
+  }
   setTimeout(async () => {
     try {
       await processJobById(jobId);
