@@ -74,61 +74,64 @@ export function DateTimePicker({ value, onChange, className }: Props) {
   const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
 
   return (
-    <div className={`flex items-center gap-1.5 ${className ?? ""}`}>
+    <div className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-1.5 ${className ?? ""}`}>
       {/* Date */}
       <Input
         type="date"
         value={date}
-        className="flex-1"
+        className="w-full sm:flex-1"
         onChange={(e) => {
           setDate(e.target.value);
           emit(e.target.value, hour12, minute, ampm);
         }}
       />
 
-      {/* Hour */}
-      <select
-        className={selectClass}
-        value={hour12}
-        onChange={(e) => {
-          setHour12(e.target.value);
-          emit(date, e.target.value, minute, ampm);
-        }}
-      >
-        {hours.map((h) => (
-          <option key={h} value={h}>{h}</option>
-        ))}
-      </select>
+      {/* Time row */}
+      <div className="flex items-center gap-1.5">
+        {/* Hour */}
+        <select
+          className={selectClass}
+          value={hour12}
+          onChange={(e) => {
+            setHour12(e.target.value);
+            emit(date, e.target.value, minute, ampm);
+          }}
+        >
+          {hours.map((h) => (
+            <option key={h} value={h}>{h}</option>
+          ))}
+        </select>
 
-      <span className="text-muted-foreground">:</span>
+        <span className="text-muted-foreground">:</span>
 
-      {/* Minute */}
-      <select
-        className={selectClass}
-        value={minute}
-        onChange={(e) => {
-          setMinute(e.target.value);
-          emit(date, hour12, e.target.value, ampm);
-        }}
-      >
-        {minutes.map((m) => (
-          <option key={m} value={m}>{m}</option>
-        ))}
-      </select>
+        {/* Minute */}
+        <select
+          className={selectClass}
+          value={minute}
+          onChange={(e) => {
+            setMinute(e.target.value);
+            emit(date, hour12, e.target.value, ampm);
+          }}
+        >
+          {minutes.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
 
-      {/* AM / PM */}
-      <select
-        className={selectClass}
-        value={ampm}
-        onChange={(e) => {
-          const a = e.target.value as "AM" | "PM";
-          setAmpm(a);
-          emit(date, hour12, minute, a);
-        }}
-      >
-        <option value="AM">AM</option>
-        <option value="PM">PM</option>
-      </select>
+        {/* AM / PM */}
+        <select
+          className={selectClass}
+          value={ampm}
+          onChange={(e) => {
+            const a = e.target.value as "AM" | "PM";
+            setAmpm(a);
+            emit(date, hour12, minute, a);
+          }}
+        >
+          <option value="AM">AM</option>
+          <option value="PM">PM</option>
+        </select>
+      </div>
     </div>
   );
 }

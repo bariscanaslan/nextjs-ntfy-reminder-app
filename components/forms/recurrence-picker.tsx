@@ -12,7 +12,7 @@ interface RecurrenceState {
   freq: Freq;
   interval: number;
   byweekday: string[]; // ["MO","TU",...]
-  bymonthday: number;  // 1–31
+  bymonthday: number;  // 1–31, or -1 for "last day"
   endType: EndType;
   count: number;
   until: string; // YYYY-MM-DD
@@ -62,7 +62,7 @@ function parseRRule(rrule: string): RecurrenceState {
     if (key === "FREQ") state.freq = val.toUpperCase() as Freq;
     else if (key === "INTERVAL") state.interval = Math.max(1, parseInt(val) || 1);
     else if (key === "BYDAY") state.byweekday = val.split(",").map((d) => d.toUpperCase());
-    else if (key === "BYMONTHDAY") state.bymonthday = parseInt(val) || 1;
+    else if (key === "BYMONTHDAY") state.bymonthday = parseInt(val) || 1; // -1 = last day
     else if (key === "COUNT") { state.endType = "count"; state.count = parseInt(val) || 5; }
     else if (key === "UNTIL") {
       state.endType = "until";
@@ -80,7 +80,9 @@ function buildRRule(s: RecurrenceState): string {
     parts.push(`BYDAY=${s.byweekday.join(",")}`);
   }
   if (s.freq === "MONTHLY") {
-    parts.push(`BYMONTHDAY=${Math.min(31, Math.max(1, s.bymonthday))}`);
+    // -1 = last day of month; otherwise clamp to 1–31
+    const day = s.bymonthday === -1 ? -1 : Math.min(31, Math.max(1, s.bymonthday));
+    parts.push(`BYMONTHDAY=${day}`);
   }
   if (s.endType === "count" && s.count > 0) {
     parts.push(`COUNT=${s.count}`);
@@ -208,17 +210,29 @@ export function RecurrencePicker({
 
       {/* Monthly: day of month */}
       {state.freq === "MONTHLY" && (
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">On day</span>
-          <input
-            type="number"
-            min={1}
-            max={31}
-            value={state.bymonthday}
-            onChange={(e) => update({ bymonthday: Math.min(31, Math.max(1, parseInt(e.target.value) || 1)) })}
-            className={`${inputClass} w-16 text-center`}
-          />
-          <span className="text-sm text-muted-foreground">of the month</span>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-muted-foreground">On day</span>
+            <select
+              value={state.bymonthday === -1 ? "last" : String(state.bymonthday)}
+              onChange={(e) => {
+                const v = e.target.value;
+                update({ bymonthday: v === "last" ? -1 : (parseInt(v) || 1) });
+              }}
+              className={`${inputClass} w-36`}
+            >
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>{d}{d === 1 ? "st" : d === 2 ? "nd" : d === 3 ? "rd" : "th"}</option>
+              ))}
+              <option value="last">Last day</option>
+            </select>
+            <span className="text-sm text-muted-foreground">of the month</span>
+          </div>
+          {state.bymonthday > 28 && state.bymonthday !== -1 && (
+            <p className="text-[11px] text-amber-600">
+              Day {state.bymonthday} doesn&apos;t exist in all months — those months will be skipped. Use &ldquo;Last day&rdquo; to always trigger on the final day of every month.
+            </p>
+          )}
         </div>
       )}
 
