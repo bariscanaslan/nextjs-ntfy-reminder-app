@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       description?: string;
     };
 
-    const events = (reminders as ReminderDoc[]).map((reminder) => {
+    const events = (reminders as unknown as ReminderDoc[]).map((reminder) => {
       // For recurring reminders prefer nextTriggerAt so the event lands on
       // the upcoming occurrence rather than the original creation date.
       const start =
