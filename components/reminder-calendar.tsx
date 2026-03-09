@@ -22,13 +22,16 @@ import {
   Tag,
   Repeat,
   Timer,
-  CheckSquare
+  CheckSquare,
 } from "lucide-react";
 import Link from "next/link";
 
-// ─── Urgency colours ────────────────────────────────────────────────────────
+// ─── Urgency colours ─────────────────────────────────────────────────────────
 
-const urgencyColor: Record<string, { bg: string; border: string; text: string; dot: string; badge: string }> = {
+const urgencyColor: Record<
+  string,
+  { bg: string; border: string; text: string; dot: string; badge: string }
+> = {
   low:      { bg: "#f0fdf4", border: "#16a34a", text: "#15803d", dot: "#16a34a", badge: "bg-green-100 text-green-700" },
   medium:   { bg: "#eff6ff", border: "#3b82f6", text: "#1d4ed8", dot: "#3b82f6", badge: "bg-blue-100 text-blue-700" },
   high:     { bg: "#fff7ed", border: "#f97316", text: "#c2410c", dot: "#f97316", badge: "bg-orange-100 text-orange-700" },
@@ -56,7 +59,48 @@ const typeIcon: Record<string, React.ReactNode> = {
   habit:     <CheckSquare className="h-3.5 w-3.5" />,
 };
 
-// ─── Icon map ────────────────────────────────────────────────────────────────
+// ─── Module-level constants (stable across renders) ───────────────────────────
+
+/** Plugin array defined once so FullCalendar never sees a changed reference. */
+const FC_PLUGINS = [dayGridPlugin, timeGridPlugin, interactionPlugin];
+
+/**
+ * FullCalendar event source function — MUST live at module scope.
+ *
+ * If this were defined inside the component, a new function reference would be
+ * created on every render.  FullCalendar treats a changed `events` reference as
+ * a new source, clears the calendar and re-fetches → triggers `eventsSet` →
+ * parent state update → re-render → new reference → infinite loop / crash.
+ */
+async function fetchCalendarEvents(
+  info: EventSourceFuncArg,
+  successCallback: (events: EventInput[]) => void,
+  failureCallback: (error: Error) => void
+) {
+  try {
+    const url =
+      `/api/calendar` +
+      `?from=${encodeURIComponent(info.start.toISOString())}` +
+      `&to=${encodeURIComponent(info.end.toISOString())}`;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Calendar API error: ${res.status}`);
+    const data = await res.json();
+
+    const enriched = (data.events ?? []).map((e: Record<string, unknown>) => {
+      const urgency =
+        ((e.extendedProps as Record<string, unknown>)?.urgency as string) ?? "medium";
+      const c = urgencyColor[urgency] ?? urgencyColor.medium;
+      return { ...e, backgroundColor: c.bg, borderColor: c.border, textColor: c.text };
+    });
+
+    successCallback(enriched);
+  } catch (err) {
+    failureCallback(err instanceof Error ? err : new Error(String(err)));
+  }
+}
+
+// ─── Icon map ─────────────────────────────────────────────────────────────────
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Bell, HeartPulse, Dumbbell, Briefcase, Pill, ClipboardCheck, CalendarHeart, AlertCircle,
@@ -67,7 +111,7 @@ function ReminderIcon({ iconKey, className }: { iconKey?: string; className?: st
   return <Icon className={className} />;
 }
 
-// ─── Date formatting ─────────────────────────────────────────────────────────
+// ─── Date formatting ──────────────────────────────────────────────────────────
 
 function fmt(date: Date | string | null | undefined): string {
   if (!date) return "—";
@@ -77,7 +121,7 @@ function fmt(date: Date | string | null | undefined): string {
   });
 }
 
-// ─── Event popup ─────────────────────────────────────────────────────────────
+// ─── Event popup ──────────────────────────────────────────────────────────────
 
 function EventPopup({ event, onClose }: { event: EventApi; onClose: () => void }) {
   const props = event.extendedProps as {
@@ -92,7 +136,7 @@ function EventPopup({ event, onClose }: { event: EventApi; onClose: () => void }
 
   const urgency = props.urgency ?? "medium";
   const c = urgencyColor[urgency] ?? urgencyColor.medium;
-  // For recurring occurrences the event id is "{reminderId}_{timestamp}" — use reminderId for navigation.
+  // Recurring occurrence IDs are "{reminderId}_{timestamp}" — navigate via reminderId.
   const reminderId = props.reminderId ?? event.id;
 
   return (
@@ -137,11 +181,15 @@ function EventPopup({ event, onClose }: { event: EventApi; onClose: () => void }
 
           {/* Badges */}
           <div className="mb-4 flex flex-wrap gap-2">
-            <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${c.badge}`}>
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${c.badge}`}
+            >
               {urgency}
             </span>
             {props.status && (
-              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${statusBadge[props.status] ?? ""}`}>
+              <span
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${statusBadge[props.status] ?? ""}`}
+              >
                 {props.status}
               </span>
             )}
@@ -171,7 +219,9 @@ function EventPopup({ event, onClose }: { event: EventApi; onClose: () => void }
 
           {/* Description */}
           {props.description && (
-            <p className="mb-4 text-sm text-muted-foreground leading-relaxed">{props.description}</p>
+            <p className="mb-4 text-sm text-muted-foreground leading-relaxed">
+              {props.description}
+            </p>
           )}
 
           {/* Actions */}
@@ -208,16 +258,20 @@ export interface CalendarEventData {
   extendedProps?: Record<string, unknown>;
 }
 
-// ─── Calendar ────────────────────────────────────────────────────────────────
+// ─── Calendar ─────────────────────────────────────────────────────────────────
 
 interface ReminderCalendarProps {
-  /** Called every time the visible event set changes (view navigation, load, etc.) */
+  /** Called every time FullCalendar's visible event set changes. */
   onEventsSet?: (events: CalendarEventData[]) => void;
 }
 
 export function ReminderCalendar({ onEventsSet }: ReminderCalendarProps) {
   const [popupEvent, setPopupEvent] = useState<EventApi | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Ref so the inline eventsSet callback always has the latest handler without
+  // changing the inline function's identity (which would cause FullCalendar to
+  // refresh its internal listener on every render).
   const onEventsSetRef = useRef(onEventsSet);
   onEventsSetRef.current = onEventsSet;
 
@@ -229,59 +283,21 @@ export function ReminderCalendar({ onEventsSet }: ReminderCalendarProps) {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  /**
-   * FullCalendar event source function — called automatically whenever the
-   * visible date range changes (view switch, previous/next navigation, etc.).
-   * This ensures recurring occurrences are always fetched for the correct range.
-   */
-  async function fetchEvents(
-    info: EventSourceFuncArg,
-    successCallback: (events: EventInput[]) => void,
-    failureCallback: (error: Error) => void
-  ) {
-    try {
-      const url = `/api/calendar?from=${encodeURIComponent(info.start.toISOString())}&to=${encodeURIComponent(info.end.toISOString())}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Calendar API error: ${res.status}`);
-      const data = await res.json();
-
-      const enriched = (data.events ?? []).map((e: Record<string, unknown>) => {
-        const urgency = ((e.extendedProps as Record<string, unknown>)?.urgency as string) ?? "medium";
-        const c = urgencyColor[urgency] ?? urgencyColor.medium;
-        return {
-          ...e,
-          backgroundColor: c.bg,
-          borderColor: c.border,
-          textColor: c.text,
-        };
-      });
-
-      successCallback(enriched);
-    } catch (err) {
-      failureCallback(err instanceof Error ? err : new Error(String(err)));
-    }
-  }
-
   return (
     <>
       <div className="fc-modern">
         <FullCalendar
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+          plugins={FC_PLUGINS}
           initialView="dayGridMonth"
           headerToolbar={
             isMobile
               ? { left: "prev,next", center: "title", right: "today" }
               : { left: "prev,next today", center: "title", right: "dayGridMonth,timeGridWeek,timeGridDay" }
           }
-          buttonText={{
-            today: "Today",
-            month: "Month",
-            week: "Week",
-            day: "Day",
-          }}
-          // Dynamic event source: fetches from API for the current visible range
-          events={fetchEvents}
-          // Notify parent whenever the loaded event set changes
+          buttonText={{ today: "Today", month: "Month", week: "Week", day: "Day" }}
+          // Stable module-level reference — prevents infinite refetch loops.
+          events={fetchCalendarEvents}
+          // Propagate current event set to parent for stats / sidebar.
           eventsSet={(apiEvents) => {
             if (!onEventsSetRef.current) return;
             onEventsSetRef.current(
@@ -296,7 +312,7 @@ export function ReminderCalendar({ onEventsSet }: ReminderCalendarProps) {
             );
           }}
           eventClick={(arg) => setPopupEvent(arg.event)}
-          // ─── Custom event rendering — adapts to month vs. time-grid view ────
+          // ─── Custom event rendering — adapts to month vs. time-grid view ──
           eventContent={(arg) => {
             const urgency = (arg.event.extendedProps?.urgency as string) ?? "medium";
             const c = urgencyColor[urgency] ?? urgencyColor.medium;
@@ -339,10 +355,7 @@ export function ReminderCalendar({ onEventsSet }: ReminderCalendarProps) {
                   className="h-1.5 w-1.5 shrink-0 rounded-full"
                   style={{ backgroundColor: c.dot }}
                 />
-                <span
-                  className="truncate text-xs font-medium"
-                  style={{ color: c.text }}
-                >
+                <span className="truncate text-xs font-medium" style={{ color: c.text }}>
                   {arg.event.title}
                 </span>
               </div>
@@ -363,7 +376,7 @@ export function ReminderCalendar({ onEventsSet }: ReminderCalendarProps) {
           slotDuration="00:30:00"
           slotLabelInterval="01:00:00"
           eventMinHeight={24}
-          // Month view options
+          // General options
           height="auto"
           dayMaxEvents={isMobile ? 2 : 4}
           aspectRatio={isMobile ? 1.2 : 1.8}
