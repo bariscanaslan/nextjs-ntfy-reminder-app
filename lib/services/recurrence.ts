@@ -109,3 +109,49 @@ export function parseRrulePreview(rruleText: string, startAt: Date, count = 5) {
   const rule = rrulestr(rruleText, { dtstart: startAt }) as RRule;
   return rule.all((_, i) => i < count);
 }
+
+/**
+ * Returns all occurrence dates for a reminder that fall within [from, to] (inclusive).
+ * For recurring reminders the RRULE is expanded; for one-time/deadline/habit the single
+ * startAt is returned if it falls in range.  Excluded dates are filtered out.
+ * maxOccurrences caps the result to prevent huge payloads for high-frequency rules.
+ */
+export function getOccurrencesInRange(
+  reminder: ReminderDocument,
+  from: Date,
+  to: Date,
+  maxOccurrences = 200
+): Date[] {
+  const tz = reminder.timezone ?? "UTC";
+  const startAt = new Date(reminder.startAt as Date);
+
+  if (reminder.type !== "recurring" || !reminder.rrule) {
+    return startAt >= from && startAt <= to ? [startAt] : [];
+  }
+
+  const dtstart = toFakeUTC(startAt, tz);
+  const fromFake = toFakeUTC(from, tz);
+  const toFake = toFakeUTC(to, tz);
+
+  const rule = rrulestr(reminder.rrule, {
+    dtstart,
+    forceset: false,
+  }) as RRule;
+
+  const excludedDates = (reminder.excludedDates ?? []).map(
+    (value) => new Date(value as unknown as string)
+  );
+
+  const fakeOccurrences = rule.between(fromFake, toFake, true);
+
+  const result: Date[] = [];
+  for (const fake of fakeOccurrences) {
+    if (result.length >= maxOccurrences) break;
+    const real = fromFakeUTC(fake, tz);
+    if (!isExcluded(real, excludedDates)) {
+      result.push(real);
+    }
+  }
+
+  return result;
+}

@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
-import type { EventApi } from "@fullcalendar/core";
+import type { EventApi, EventInput, EventSourceFuncArg } from "@fullcalendar/core";
 import {
   X,
   ExternalLink,
@@ -36,10 +36,10 @@ const urgencyColor: Record<string, { bg: string; border: string; text: string; d
 };
 
 const statusBadge: Record<string, string> = {
-  active:   "bg-green-100 text-green-700",
-  paused:   "bg-amber-100 text-amber-700",
-  archived: "bg-muted text-muted-foreground",
-  completed:"bg-blue-100 text-blue-700",
+  active:    "bg-green-100 text-green-700",
+  paused:    "bg-amber-100 text-amber-700",
+  archived:  "bg-muted text-muted-foreground",
+  completed: "bg-blue-100 text-blue-700",
 };
 
 const typeLabel: Record<string, string> = {
@@ -87,10 +87,13 @@ function EventPopup({ event, onClose }: { event: EventApi; onClose: () => void }
     iconKey?: string;
     category?: { name?: string } | null;
     description?: string;
+    reminderId?: string;
   };
 
   const urgency = props.urgency ?? "medium";
   const c = urgencyColor[urgency] ?? urgencyColor.medium;
+  // For recurring occurrences the event id is "{reminderId}_{timestamp}" — use reminderId for navigation.
+  const reminderId = props.reminderId ?? event.id;
 
   return (
     <div
@@ -154,7 +157,7 @@ function EventPopup({ event, onClose }: { event: EventApi; onClose: () => void }
           <div className="mb-4 space-y-2 rounded-xl bg-muted/50 p-3">
             <div className="flex items-center gap-2 text-sm">
               <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <span className="font-medium text-muted-foreground">Start:</span>
+              <span className="font-medium text-muted-foreground">Time:</span>
               <span>{fmt(event.start)}</span>
             </div>
             {event.end && (
@@ -180,7 +183,7 @@ function EventPopup({ event, onClose }: { event: EventApi; onClose: () => void }
               Close
             </button>
             <Link
-              href={`/reminders/${event.id}`}
+              href={`/reminders/${reminderId}`}
               className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground transition hover:bg-primary/90"
               onClick={onClose}
             >
@@ -194,11 +197,29 @@ function EventPopup({ event, onClose }: { event: EventApi; onClose: () => void }
   );
 }
 
+// ─── Serialisable event shape returned to parent via onEventsSet ──────────────
+
+export interface CalendarEventData {
+  id: string;
+  title: string;
+  start: string;
+  end?: string;
+  allDay?: boolean;
+  extendedProps?: Record<string, unknown>;
+}
+
 // ─── Calendar ────────────────────────────────────────────────────────────────
 
-export function ReminderCalendar({ events }: { events: Array<Record<string, unknown>> }) {
+interface ReminderCalendarProps {
+  /** Called every time the visible event set changes (view navigation, load, etc.) */
+  onEventsSet?: (events: CalendarEventData[]) => void;
+}
+
+export function ReminderCalendar({ onEventsSet }: ReminderCalendarProps) {
   const [popupEvent, setPopupEvent] = useState<EventApi | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+  const onEventsSetRef = useRef(onEventsSet);
+  onEventsSetRef.current = onEventsSet;
 
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 640px)");
@@ -208,17 +229,38 @@ export function ReminderCalendar({ events }: { events: Array<Record<string, unkn
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // Enrich events with urgency-based colours for FullCalendar
-  const coloredEvents = events.map((e) => {
-    const urgency = (e.extendedProps as Record<string, unknown>)?.urgency as string ?? "medium";
-    const c = urgencyColor[urgency] ?? urgencyColor.medium;
-    return {
-      ...e,
-      backgroundColor: c.bg,
-      borderColor: c.border,
-      textColor: c.text,
-    };
-  });
+  /**
+   * FullCalendar event source function — called automatically whenever the
+   * visible date range changes (view switch, previous/next navigation, etc.).
+   * This ensures recurring occurrences are always fetched for the correct range.
+   */
+  async function fetchEvents(
+    info: EventSourceFuncArg,
+    successCallback: (events: EventInput[]) => void,
+    failureCallback: (error: Error) => void
+  ) {
+    try {
+      const url = `/api/calendar?from=${encodeURIComponent(info.start.toISOString())}&to=${encodeURIComponent(info.end.toISOString())}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Calendar API error: ${res.status}`);
+      const data = await res.json();
+
+      const enriched = (data.events ?? []).map((e: Record<string, unknown>) => {
+        const urgency = ((e.extendedProps as Record<string, unknown>)?.urgency as string) ?? "medium";
+        const c = urgencyColor[urgency] ?? urgencyColor.medium;
+        return {
+          ...e,
+          backgroundColor: c.bg,
+          borderColor: c.border,
+          textColor: c.text,
+        };
+      });
+
+      successCallback(enriched);
+    } catch (err) {
+      failureCallback(err instanceof Error ? err : new Error(String(err)));
+    }
+  }
 
   return (
     <>
@@ -237,11 +279,56 @@ export function ReminderCalendar({ events }: { events: Array<Record<string, unkn
             week: "Week",
             day: "Day",
           }}
-          events={coloredEvents as never[]}
+          // Dynamic event source: fetches from API for the current visible range
+          events={fetchEvents}
+          // Notify parent whenever the loaded event set changes
+          eventsSet={(apiEvents) => {
+            if (!onEventsSetRef.current) return;
+            onEventsSetRef.current(
+              apiEvents.map((ev) => ({
+                id: ev.id,
+                title: ev.title,
+                start: ev.start?.toISOString() ?? "",
+                end: ev.end?.toISOString(),
+                allDay: ev.allDay,
+                extendedProps: ev.extendedProps as Record<string, unknown>,
+              }))
+            );
+          }}
           eventClick={(arg) => setPopupEvent(arg.event)}
+          // ─── Custom event rendering — adapts to month vs. time-grid view ────
           eventContent={(arg) => {
-            const urgency = arg.event.extendedProps?.urgency as string ?? "medium";
+            const urgency = (arg.event.extendedProps?.urgency as string) ?? "medium";
             const c = urgencyColor[urgency] ?? urgencyColor.medium;
+            const isTimeGrid =
+              arg.view.type === "timeGridWeek" || arg.view.type === "timeGridDay";
+
+            if (isTimeGrid) {
+              return (
+                <div
+                  className="flex h-full w-full cursor-pointer flex-col gap-0.5 overflow-hidden px-1.5 py-1"
+                  style={{ backgroundColor: c.bg, borderLeft: `3px solid ${c.border}` }}
+                  title={arg.event.title}
+                >
+                  {arg.timeText && (
+                    <span
+                      className="text-[10px] font-semibold leading-none opacity-70"
+                      style={{ color: c.text }}
+                    >
+                      {arg.timeText}
+                    </span>
+                  )}
+                  <span
+                    className="truncate text-[11px] font-semibold leading-tight"
+                    style={{ color: c.text }}
+                  >
+                    {arg.event.title}
+                  </span>
+                </div>
+              );
+            }
+
+            // Month / list view — horizontal pill
             return (
               <div
                 className="flex w-full cursor-pointer items-center gap-1.5 overflow-hidden rounded-md px-1.5 py-0.5"
@@ -270,6 +357,13 @@ export function ReminderCalendar({ events }: { events: Array<Record<string, unkn
             arg.el.style.transform = "";
             arg.el.style.zIndex = "";
           }}
+          // Time-grid specific options
+          nowIndicator
+          scrollTime="07:00:00"
+          slotDuration="00:30:00"
+          slotLabelInterval="01:00:00"
+          eventMinHeight={24}
+          // Month view options
           height="auto"
           dayMaxEvents={isMobile ? 2 : 4}
           aspectRatio={isMobile ? 1.2 : 1.8}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
@@ -8,84 +8,38 @@ import {
   LayoutGrid,
   TrendingUp,
   AlertTriangle,
-  Bell,
-  HeartPulse,
-  Dumbbell,
-  Briefcase,
-  Pill,
-  ClipboardCheck,
-  CalendarHeart,
-  AlertCircle,
   Link2,
   Copy,
   Check,
 } from "lucide-react";
-import { ReminderCalendar } from "@/components/reminder-calendar";
+import { ReminderCalendar, type CalendarEventData } from "@/components/reminder-calendar";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface CalendarEvent {
-  id: string;
-  title: string;
-  start: string;
-  end?: string;
-  allDay?: boolean;
-  extendedProps?: {
-    urgency?: string;
-    status?: string;
-    type?: string;
-    iconKey?: string;
-    category?: { name?: string } | null;
-  };
-}
+type CalendarEvent = CalendarEventData;
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const urgencyDot: Record<string, string> = {
-  low: "bg-green-500",
-  medium: "bg-blue-500",
-  high: "bg-orange-500",
+  low:      "bg-green-500",
+  medium:   "bg-blue-500",
+  high:     "bg-orange-500",
   critical: "bg-red-500",
 };
 
 const urgencyLabel: Record<string, string> = {
-  low: "Low",
-  medium: "Medium",
-  high: "High",
+  low:      "Low",
+  medium:   "Medium",
+  high:     "High",
   critical: "Critical",
 };
 
 const urgencyBadge: Record<string, string> = {
-  low: "bg-green-100 text-green-700",
-  medium: "bg-blue-100 text-blue-700",
-  high: "bg-orange-100 text-orange-700",
+  low:      "bg-green-100 text-green-700",
+  medium:   "bg-blue-100 text-blue-700",
+  high:     "bg-orange-100 text-orange-700",
   critical: "bg-red-100 text-red-700",
 };
-
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  Bell, HeartPulse, Dumbbell, Briefcase, Pill, ClipboardCheck, CalendarHeart, AlertCircle,
-};
-
-function EventIcon({ iconKey, className }: { iconKey?: string; className?: string }) {
-  const Icon = iconMap[iconKey ?? "Bell"] ?? Bell;
-  return <Icon className={className} />;
-}
-
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-
-  if (d.toDateString() === today.toDateString()) {
-    return `Today · ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true })}`;
-  }
-  if (d.toDateString() === tomorrow.toDateString()) {
-    return `Tomorrow · ${d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true })}`;
-  }
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) +
-    " · " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", hour12: true });
-}
 
 // ─── Stat card ───────────────────────────────────────────────────────────────
 
@@ -115,7 +69,7 @@ function StatCard({
 
 // ─── Upcoming sidebar ────────────────────────────────────────────────────────
 
-function UpcomingList({ events }: { events: CalendarEvent[] }) {
+function UpcomingList({ events, loaded }: { events: CalendarEvent[]; loaded: boolean }) {
   const now = new Date();
   const cutoff = new Date(now);
   cutoff.setDate(now.getDate() + 14);
@@ -127,6 +81,15 @@ function UpcomingList({ events }: { events: CalendarEvent[] }) {
     })
     .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
     .slice(0, 12);
+
+  if (!loaded) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center">
+        <div className="mb-2 h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <p className="text-xs text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
 
   if (!upcoming.length) {
     return (
@@ -173,11 +136,12 @@ function UpcomingList({ events }: { events: CalendarEvent[] }) {
             </div>
             <div className="space-y-1.5">
               {dayEvents.map((e) => {
-                const urgency = e.extendedProps?.urgency ?? "medium";
+                const urgency = (e.extendedProps?.urgency as string) ?? "medium";
+                const reminderId = (e.extendedProps?.reminderId as string) ?? e.id;
                 return (
                   <Link
                     key={e.id}
-                    href={`/reminders/${e.id}`}
+                    href={`/reminders/${reminderId}`}
                     className="group flex items-center gap-2.5 rounded-xl border border-border bg-card p-2.5 transition hover:border-primary/30 hover:shadow-sm"
                   >
                     <span className={`h-2 w-2 shrink-0 rounded-full ${urgencyDot[urgency] ?? "bg-muted-foreground"}`} />
@@ -212,7 +176,6 @@ function SubscribeButton() {
   const [showPanel, setShowPanel] = useState(false);
   const [icalToken, setIcalToken] = useState<string | null>(null);
 
-  // Fetch the iCal secret token from the protected endpoint
   useEffect(() => {
     fetch("/api/calendar/ical-token")
       .then((r) => r.json())
@@ -258,7 +221,6 @@ function SubscribeButton() {
 
       {showPanel && (
         <>
-          {/* backdrop */}
           <div className="fixed inset-0 z-40" onClick={() => setShowPanel(false)} />
 
           <div className="absolute right-0 top-full z-50 mt-2 w-[min(20rem,calc(100vw-1rem))] rounded-2xl border border-border bg-card p-4 shadow-xl">
@@ -268,7 +230,6 @@ function SubscribeButton() {
               that supports iCal / WebCal.
             </p>
 
-            {/* Download .ics — works everywhere including localhost */}
             <a
               href={feedPath}
               download="reminders.ics"
@@ -281,7 +242,6 @@ function SubscribeButton() {
               </div>
             </a>
 
-            {/* webcal live subscription */}
             <button
               onClick={openWebcal}
               className="mb-2 flex w-full items-center gap-2.5 rounded-xl border border-border px-3 py-2.5 text-left text-sm font-medium text-muted-foreground transition hover:border-primary/30 hover:text-primary"
@@ -293,7 +253,6 @@ function SubscribeButton() {
               </div>
             </button>
 
-            {/* copy HTTPS URL */}
             <div className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2">
               <code className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
                 {httpsUrl}
@@ -325,23 +284,15 @@ function SubscribeButton() {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function CalendarPage() {
+  // Events are populated by the ReminderCalendar component via onEventsSet.
+  // This avoids a duplicate fetch — the calendar fetches once for its own view,
+  // and we reuse those events for stats and the upcoming sidebar.
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [calendarLoaded, setCalendarLoaded] = useState(false);
 
-  useEffect(() => {
-    const from = new Date();
-    from.setMonth(from.getMonth() - 1);
-    const to = new Date();
-    to.setMonth(to.getMonth() + 3);
-
-    fetch(
-      `/api/calendar?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`
-    )
-      .then((r) => r.json())
-      .then((data) => {
-        setEvents(data.events ?? []);
-        setLoading(false);
-      });
+  const handleEventsSet = useCallback((calEvents: CalendarEventData[]) => {
+    setEvents(calEvents);
+    setCalendarLoaded(true);
   }, []);
 
   const stats = useMemo(() => {
@@ -350,17 +301,29 @@ export default function CalendarPage() {
     const weekEnd = new Date(now);
     weekEnd.setDate(now.getDate() + 7);
 
-    const total = events.length;
-    const todayCount = events.filter((e) => new Date(e.start).toDateString() === todayStr).length;
-    const weekCount = events.filter((e) => {
-      const d = new Date(e.start);
-      return d >= now && d <= weekEnd;
-    }).length;
-    const criticalCount = events.filter(
-      (e) => e.extendedProps?.urgency === "critical" && e.extendedProps?.status === "active"
-    ).length;
+    // De-duplicate by reminderId so recurring occurrences don't inflate counts.
+    const uniqueReminderIds = new Set<string>();
+    let todayCount = 0;
+    let weekCount = 0;
+    let criticalCount = 0;
 
-    return { total, todayCount, weekCount, criticalCount };
+    for (const e of events) {
+      const d = new Date(e.start);
+      const reminderId = (e.extendedProps?.reminderId as string) ?? e.id;
+
+      if (d.toDateString() === todayStr) todayCount++;
+      if (d >= now && d <= weekEnd) weekCount++;
+      if (
+        e.extendedProps?.urgency === "critical" &&
+        e.extendedProps?.status === "active" &&
+        !uniqueReminderIds.has(reminderId)
+      ) {
+        criticalCount++;
+        uniqueReminderIds.add(reminderId);
+      }
+    }
+
+    return { total: events.length, todayCount, weekCount, criticalCount };
   }, [events]);
 
   return (
@@ -376,74 +339,50 @@ export default function CalendarPage() {
         <SubscribeButton />
       </div>
 
-      {/* Stats */}
-      {!loading && (
+      {/* Stats — shown once calendar has loaded its first batch of events */}
+      {calendarLoaded && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard icon={LayoutGrid} label="Total Events" value={stats.total} color="bg-primary/10 text-primary" />
-          <StatCard icon={CalendarDays} label="Today" value={stats.todayCount} color="bg-green-100 text-green-600" />
-          <StatCard icon={TrendingUp} label="This Week" value={stats.weekCount} color="bg-blue-100 text-blue-600" />
+          <StatCard icon={LayoutGrid}    label="Visible Events"  value={stats.total}         color="bg-primary/10 text-primary" />
+          <StatCard icon={CalendarDays}  label="Today"           value={stats.todayCount}    color="bg-green-100 text-green-600" />
+          <StatCard icon={TrendingUp}    label="This Week"       value={stats.weekCount}     color="bg-blue-100 text-blue-600" />
           <StatCard icon={AlertTriangle} label="Critical Active" value={stats.criticalCount} color="bg-red-100 text-red-600" />
         </div>
       )}
 
       {/* Main layout */}
-      {loading ? (
-        <div className="rounded-2xl border border-border bg-card p-12 text-center shadow-sm">
-          <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Loading calendar…</p>
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
+        {/* Calendar — always rendered; fetches its own events dynamically */}
+        <div className="min-w-0 flex-1 rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-5">
+          <ReminderCalendar onEventsSet={handleEventsSet} />
         </div>
-      ) : events.length === 0 ? (
-        <div className="rounded-2xl border border-border bg-card p-12 text-center shadow-sm">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-            <CalendarDays className="h-7 w-7 text-muted-foreground" />
-          </div>
-          <p className="text-base font-semibold">No events in range</p>
-          <p className="mt-1 text-sm text-muted-foreground">Create reminders to see them here.</p>
-          <Link
-            href="/reminders"
-            className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            <CalendarDays className="h-4 w-4" />
-            Go to Reminders
-          </Link>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start">
-          {/* Calendar */}
-          <div className="min-w-0 flex-1 rounded-2xl border border-border bg-card p-3 shadow-sm sm:p-5">
-            <ReminderCalendar events={events as unknown as Array<Record<string, unknown>>} />
-          </div>
 
-          {/* Upcoming sidebar */}
-          <aside className="w-full shrink-0 rounded-2xl border border-border bg-card p-4 shadow-sm lg:w-64 xl:w-72">
-            <div className="mb-3 flex items-center gap-2">
-              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10">
-                <Clock className="h-3.5 w-3.5 text-primary" />
-              </div>
-              <h3 className="text-sm font-semibold">Upcoming</h3>
-              <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                14 days
-              </span>
+        {/* Upcoming sidebar */}
+        <aside className="w-full shrink-0 rounded-2xl border border-border bg-card p-4 shadow-sm lg:w-64 xl:w-72">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10">
+              <Clock className="h-3.5 w-3.5 text-primary" />
             </div>
-            <div className="lg:max-h-[calc(100vh-18rem)] lg:overflow-y-auto lg:pr-0.5">
-              <UpcomingList events={events} />
-            </div>
-          </aside>
-        </div>
-      )}
+            <h3 className="text-sm font-semibold">Upcoming</h3>
+            <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+              14 days
+            </span>
+          </div>
+          <div className="lg:max-h-[calc(100vh-18rem)] lg:overflow-y-auto lg:pr-0.5">
+            <UpcomingList events={events} loaded={calendarLoaded} />
+          </div>
+        </aside>
+      </div>
 
       {/* Legend */}
-      {!loading && events.length > 0 && (
-        <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
-          <span className="text-xs font-semibold text-muted-foreground">Urgency:</span>
-          {Object.entries(urgencyDot).map(([key, dotClass]) => (
-            <div key={key} className="flex items-center gap-1.5">
-              <span className={`h-2.5 w-2.5 rounded-full ${dotClass}`} />
-              <span className="text-xs capitalize text-muted-foreground">{key}</span>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-border bg-card px-4 py-3 shadow-sm">
+        <span className="text-xs font-semibold text-muted-foreground">Urgency:</span>
+        {Object.entries(urgencyDot).map(([key, dotClass]) => (
+          <div key={key} className="flex items-center gap-1.5">
+            <span className={`h-2.5 w-2.5 rounded-full ${dotClass}`} />
+            <span className="text-xs capitalize text-muted-foreground">{key}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
