@@ -208,6 +208,13 @@ export async function processJobById(jobId: string) {
       job.status = "failed";
       job.lastError = errorMessage;
       await job.save();
+
+      // Even on permanent delivery failure, advance recurring reminders to the
+      // next occurrence so nextTriggerAt never stays stuck in the past.
+      if (offsetMinutes === 0) {
+        await scheduleNextAfterDelivery(String(reminder._id), payloadTriggerAt);
+      }
+
       return;
     }
 

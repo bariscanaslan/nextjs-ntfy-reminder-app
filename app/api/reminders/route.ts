@@ -5,10 +5,42 @@ import { enqueueOccurrenceJobs, computeAndPersistNextTrigger } from "@/lib/servi
 import { reminderCreateSchema } from "@/lib/validators/reminder";
 import { badRequest, ok, serverError } from "@/lib/utils/http";
 
+/**
+ * Silently recompute nextTriggerAt for any active reminders whose stored value
+ * is in the past (stale state caused by delivery failures or server restarts).
+ * Runs as a lightweight fire-and-forget so it does not block the list response.
+ */
+async function repairStaleReminders(reminders: Array<{ _id: unknown; status: unknown; nextTriggerAt: unknown; type: unknown }>) {
+  const now = new Date();
+  const staleThreshold = new Date(now.getTime() - 2 * 60 * 1000); // 2-minute grace
+
+  const staleIds = reminders
+    .filter(
+      (r) =>
+        r.status === "active" &&
+        r.nextTriggerAt &&
+        new Date(r.nextTriggerAt as string) < staleThreshold
+    )
+    .map((r) => String(r._id));
+
+  for (const id of staleIds) {
+    try {
+      const next = await computeAndPersistNextTrigger(id);
+      if (next) await enqueueOccurrenceJobs(id, next);
+    } catch {
+      // Non-fatal — poller will retry
+    }
+  }
+}
+
 export async function GET() {
   try {
     await connectDb();
     const reminders = await ReminderModel.find().sort({ createdAt: -1 }).lean();
+
+    // Fire-and-forget repair so the list response is not delayed.
+    repairStaleReminders(reminders as never[]).catch(() => {});
+
     return ok({ reminders });
   } catch (error) {
     return serverError(error);
@@ -41,4 +73,3 @@ export async function POST(request: NextRequest) {
     return badRequest(error);
   }
 }
-

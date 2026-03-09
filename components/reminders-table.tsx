@@ -251,16 +251,27 @@ export function RemindersTable({ refreshKey }: { refreshKey?: number }) {
                     </td>
                     <td className="px-4 py-3">
                       {notifTime && eventTime ? (
-                        <div>
-                          <p className="text-sm font-medium text-foreground">
-                            {formatDateTime(notifTime)}
-                          </p>
-                          {notifTime.getTime() !== eventTime.getTime() && (
-                            <p className="text-xs text-muted-foreground">
-                              Event: {formatDateTime(eventTime)}
-                            </p>
-                          )}
-                        </div>
+                        (() => {
+                          const now = new Date();
+                          const isOverdue = notifTime < now;
+                          return (
+                            <div>
+                              <p className={`text-sm font-medium ${isOverdue ? "text-amber-600" : "text-foreground"}`}>
+                                {formatDateTime(notifTime)}
+                                {isOverdue && (
+                                  <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                                    Overdue
+                                  </span>
+                                )}
+                              </p>
+                              {notifTime.getTime() !== eventTime.getTime() && (
+                                <p className="text-xs text-muted-foreground">
+                                  Event: {formatDateTime(eventTime)}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })()
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
